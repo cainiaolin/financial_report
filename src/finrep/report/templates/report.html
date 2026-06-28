@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>{{ code }} 财报分析报告</title>
+<style>
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; margin: 2em auto; max-width: 1100px; color: #2c3e50; }
+  h1 { color: #1a5276; }
+  h2 { border-bottom: 2px solid #2980b9; padding-bottom: 4px; margin-top: 1.5em; }
+  table { border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+  td, th { border: 1px solid #bbb; padding: 6px 12px; text-align: left; }
+  th { background: #ecf0f1; }
+  .grid { display: flex; flex-wrap: wrap; gap: 12px; }
+  .grid > div { flex: 1; min-width: 480px; }
+  .cagr { font-size: 16px; }
+  .cagr b { color: #c0392b; }
+</style>
+</head>
+<body>
+<h1>{{ code }} 财报分析报告</h1>
+
+<h2>一、最新年报核心指标</h2>
+<table>
+<tr><th>指标</th><th>值</th></tr>
+{% for m in metrics_list %}
+<tr>
+  <td>{{ m.title }}</td>
+  <td>{{ latest[m.name] if latest[m.name] is not none else "N/A" }}</td>
+</tr>
+{% endfor %}
+</table>
+
+<h2>二、成长性 (5年 CAGR)</h2>
+<p class="cagr">营收 CAGR: <b>{{ cagr_rev }}</b> &nbsp;|&nbsp; 净利 CAGR: <b>{{ cagr_np }}</b></p>
+
+<h2>三、核心指标趋势</h2>
+<div class="grid">
+{% for name, chart in trend_charts.items() %}
+  <div>{{ chart | safe }}</div>
+{% endfor %}
+</div>
+
+{% if peer_radar %}
+<h2>四、同业对比</h2>
+{{ peer_radar | safe }}
+{% if peer_table %}
+{{ peer_table | safe }}
+{% endif %}
+{% endif %}
+
+</body>
+</html>

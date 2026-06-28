@@ -1,0 +1,30 @@
+# 指标元数据 (声明式) — 计算逻辑在 finrep/metrics/*.py 显式实现, 不用 eval (安全)
+# direction: higher_better(越大越好) / lower_better(越小越好) / neutral(适中)
+metrics:
+  # --- 盈利能力 ---
+  - {name: roe,              category: profitability, title: "ROE(加权,归母)",   unit: percent, direction: higher_better, depends: [net_profit_parent, parent_equity]}
+  - {name: gross_margin,     category: profitability, title: "毛利率",          unit: percent, direction: higher_better, depends: [revenue, operating_cost]}
+  - {name: net_margin,       category: profitability, title: "销售净利率",       unit: percent, direction: higher_better, depends: [net_profit, revenue]}
+  # 注: 扣非销售净利率(net_margin_deducted) 未实现 — 新浪三大报表无扣非净利润字段, 待东财恢复/Tushare 接入后补充
+  - {name: roic,             category: profitability, title: "ROIC",            unit: percent, direction: higher_better, depends: [nopat, invested_capital]}
+  # --- 营运能力 ---
+  - {name: asset_turnover,   category: operating,     title: "总资产周转率",     unit: ratio,   direction: higher_better, depends: [revenue, total_assets]}
+  - {name: inventory_days,   category: operating,     title: "存货周转天数",     unit: days,    direction: lower_better,  depends: [operating_cost, inventory]}
+  - {name: receivable_days,  category: operating,     title: "应收账款周转天数",  unit: days,    direction: lower_better,  depends: [revenue, accounts_receivable]}
+  # --- 偿债能力 ---
+  - {name: debt_to_asset,    category: solvency,      title: "资产负债率",       unit: percent, direction: neutral,       depends: [total_liabilities, total_assets]}
+  - {name: current_ratio,    category: solvency,      title: "流动比率",         unit: ratio,   direction: higher_better, depends: [current_assets, current_liabilities]}
+  - {name: interest_coverage,category: solvency,      title: "利息保障倍数",     unit: ratio,   direction: higher_better, depends: [ebit, interest_expense]}
+  # --- 成长能力 ---
+  - {name: revenue_yoy,      category: growth,        title: "营收同比",         unit: percent, direction: higher_better, depends: [revenue]}
+  - {name: net_profit_yoy,   category: growth,        title: "归母净利润增速",    unit: percent, direction: higher_better, depends: [net_profit_parent]}
+  # --- 现金流 ---
+  - {name: ncf_to_np,        category: cashflow,      title: "净现比(经营CF/净利)", unit: ratio, direction: higher_better, depends: [cffo, net_profit]}
+  - {name: cash_to_revenue,  category: cashflow,      title: "收现比(销售收现/营收)", unit: ratio, direction: higher_better, depends: [sales_cash_received, revenue]}
+
+# 雷达图 8 维 (同业对比时按百分位标准化到 [0,100])
+radar_dimensions: [roe, gross_margin, asset_turnover, revenue_yoy, ncf_to_np, current_ratio, net_margin, debt_to_asset]
+
+# 杜邦分解: ROE = 销售净利率 × 总资产周转率 × 权益乘数
+dupont:
+  factors: [net_margin, asset_turnover, equity_multiplier]

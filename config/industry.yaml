@@ -1,0 +1,21 @@
+# 行业分类与同业圈定规则
+classification: SW2021            # 申万 2021
+default_level: L2                 # 默认二级行业圈定同业 (兼顾可比性与样本量)
+
+fallback:
+  min_samples: 5                  # 同业 <5 家 → 回退到一级
+  max_samples: 30                 # 同业 >30 家 → 按市值取龙头组
+
+# 同业过滤规则
+filter:
+  exclude_st: true                # 剔除 ST/*ST
+  min_listed_years: 2             # 剔除上市不足 2 年 (历史数据不足)
+
+# 特殊行业专用指标集 (剔除失真指标)
+special_rules:
+  - industry: [银行, 保险, 证券]
+    exclude: [current_ratio, debt_to_asset, inventory_days]
+    reason: 金融业资产负债率天然 90%+, 流动比率/存货指标失真
+  - industry: [房地产开发]
+    exclude: [inventory_days]
+    reason: 存货占比极高, 周转率失真

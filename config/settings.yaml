@@ -1,0 +1,26 @@
+# 运行配置 — 敏感凭证通过 ${ENV_VAR} 从环境变量/.env 注入, 绝不硬编码
+sources:
+  akshare:
+    enabled: true
+    request_interval: [0.5, 2.0]   # 随机延时秒数区间, 规避东财 IP 限频
+  tushare:
+    enabled: true
+    token: ${TUSHARE_TOKEN}        # 未配置时降级为 AkShare 单源
+    rate_per_min: 200              # 5000 积分对应 500 次/分, 这里保守取 200
+
+paths:
+  raw_dir: ./data/raw
+  warehouse: ./data/warehouse.duckdb
+  sync_state: ./data/meta/sync_state.duckdb
+  reports_dir: ./reports
+
+# 限频与重试
+limits:
+  retry_max: 5                     # tenacity 最大重试次数
+  rate_per_min: 60                 # 令牌桶: 全局每分钟请求上限
+
+# 数据校验
+validation:
+  cross_source_threshold: 0.01     # 双源交叉校验: 关键字段差异 >1% 标记复核
+  balance_identity_threshold: 0.001 # 资产负债恒等式 |资产-负债-权益|/总资产 ≤ 0.1%
+  key_fields: [revenue, net_profit, total_assets, parent_equity, cffo]
