@@ -15,24 +15,59 @@ logger = logging.getLogger(__name__)
 
 
 class FetcherManager:
-    """统一对外入口: 容灾(主力失败→备源) + 可选双源交叉校验关键字段."""
+    """统一对外入口: 容灾(主力失败→备源) + 可选双源交叉校验关键字段.
+
+    2026-10-06 调整: **tushare 为默认主源**（结构化接口稳定），sina 降为备源容灾。
+    此前 sina 为主源时，页面结构漂移/限流会间歇性返回空帧或字段全 NaN 的残缺帧
+    （不抛异常），流入指标层后污染了 117 只股票的指标缓存。
+    tushare 未配置时自动退回 sina 单源。
+    """
 
     def __init__(self) -> None:
-        self.primary: SinaFetcher = SinaFetcher()
-        self.backup: TushareFetcher | None = TushareFetcher() if is_tushare_configured() else None
-        if self.backup is None:
+        self.backup: SinaFetcher | None = SinaFetcher()
+        if is_tushare_configured():
+            self.primary = TushareFetcher()
+        else:
+            self.primary = self.backup
+            self.backup = None
             logger.warning("Tushare 未配置, 仅启用新浪单源 (无法双源校验)")
 
+    @staticmethod
+    def _frame_usable(df: pd.DataFrame | None) -> bool:
+        """数据质量门：非空，且除 report_date 外至少一列有 ≥50% 非空值.
+
+        拦截"行数存在但值列全 NaN"的残缺帧（sina 页面漂移的典型故障形态），
+        这类帧流入 compute_metrics 会产出全 None 指标并被上游缓存。
+        """
+        if df is None or df.empty:
+            return False
+        value_cols = [c for c in df.columns if c != "report_date"]
+        if not value_cols:
+            return False
+        return any(df[c].notna().mean() >= 0.5 for c in value_cols)
+
     def fetch(self, code: str, report_type: ReportType) -> FetchResult:
-        """容灾抓取: 主力失败时自动切换备源."""
+        """容灾抓取: 主力失败/返回空数据/数据残缺时自动切换备源."""
         req = FetchRequest(code=code, report_type=report_type)
         try:
-            return self.primary.fetch(req)
+            result = self.primary.fetch(req)
         except FetchError as e:
             if self.backup is None:
                 raise
-            logger.warning("主力源失败 %s %s: %s → 切换 tushare", code, report_type, e)
+            logger.warning("主源(tushare)失败 %s %s: %s → 切换备源", code, report_type, e)
             return self.backup.fetch(req)
+        if self._frame_usable(result.data):
+            return result
+        if self.backup is None:
+            logger.warning("主源(tushare)数据不可用 %s %s 且无备源", code, report_type)
+            return result
+        logger.warning("主源(tushare)数据空/残缺 %s %s → 切换备源(sina)", code, report_type)
+        try:
+            fallback = self.backup.fetch(req)
+        except FetchError as e:
+            logger.warning("备源(sina)也失败 %s %s: %s → 返回主源结果", code, report_type, e)
+            return result
+        return fallback if self._frame_usable(fallback.data) else result
 
     def fetch_all(self, code: str) -> dict[str, FetchResult]:
         """抓取三大报表."""

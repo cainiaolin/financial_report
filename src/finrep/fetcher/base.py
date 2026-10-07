@@ -69,6 +69,9 @@ class FetcherBase(ABC):
         if "report_date" in df.columns:
             df["report_date"] = pd.to_datetime(df["report_date"], errors="coerce")
             df = df.dropna(subset=["report_date"]).sort_values("report_date").reset_index(drop=True)
+            # 2026-10-06 修复：tushare 同一报告期可能返回多条（不同 ann_date/update_flag/
+            # report_type 版本），不去重会在 merge 时产生笛卡尔积。保留最后一条（通常为最新披露）。
+            df = df.drop_duplicates(subset=["report_date"], keep="last").reset_index(drop=True)
         for col in df.columns:
             if col == "report_date":
                 continue

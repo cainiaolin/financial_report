@@ -9,6 +9,7 @@ import logging
 
 import streamlit as st
 
+from finrep.ai import analyze_stream
 from finrep.analysis import peer_compare, trend_summary
 from finrep.fetcher.codes import normalize_code
 from finrep.fetcher.company_info import CompanyInfo
@@ -93,6 +94,38 @@ def _peer_section(repo: Repository, codes: list[str], period: str, company_info:
     render_chart(peer_bar_chart(peer_view, bar_metric))
 
 
+def _ai_section(repo: Repository, code: str, company_info: CompanyInfo, peers: list[str]) -> None:
+    st.header("🤖 AI 价值投资分析 (巴菲特/芒格视角)")
+    from finrep.config import get_settings
+    ai = get_settings().get("ai", {})
+    available = [p for p in ("glm", "deepseek") if ai.get(p, {}).get("api_key")]
+    if not available:
+        st.warning("⚠️ 未配置 LLM API key — 请在 .env 设 ZHIPU_API_KEY 或 DEEPSEEK_API_KEY 后重启")
+        return
+    col1, _col2 = st.columns([1, 4])
+    with col1:
+        default_idx = available.index("glm") if "glm" in available else 0
+        provider = st.selectbox("LLM 提供商", available, index=default_idx)
+        use_mda = st.checkbox("包含年报 MD&A 全文", value=True,
+                              help="勾选后抓取巨潮年报 PDF 的「经营情况讨论与分析」章节")
+        trigger = st.button("⚡ 生成 AI 分析", type="primary")
+    if trigger:
+        with st.spinner("AI 分析中 (含 MD&A 时首次需抓 PDF, 请稍候)..."):
+            try:
+                stream = analyze_stream(
+                    code, repo,
+                    company_label=company_info.label(code),
+                    peers=peers or None,
+                    use_mda=use_mda,
+                    provider=provider,
+                )
+                st.write_stream(stream)
+            except ValueError as e:
+                st.error(f"配置错误: {e}")
+            except Exception as e:  # noqa: BLE001
+                st.error(f"AI 分析失败: {type(e).__name__}: {e}")
+
+
 def main() -> None:
     st.set_page_config(page_title="A股财报分析", page_icon="📊", layout="wide")
     st.title("📊 A股财报分析系统")
@@ -127,6 +160,7 @@ def main() -> None:
             st.warning(f"{e} — 请先点击「同步数据」")
             return
         _peer_section(repo, codes, period, company_info)
+        _ai_section(repo, code, company_info, peers)
 
 
 if __name__ == "__main__":

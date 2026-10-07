@@ -34,8 +34,43 @@ def _safe_div(num: pd.Series, den: pd.Series) -> pd.Series:
     return num / den.replace(0, pd.NA)
 
 
+# compute_metrics 直接按键取的列全集（含 _series 兜底的可选列）——merge 后保证存在
+_COMPUTE_COLS = (
+    "income_tax", "total_profit", "net_profit", "net_profit_parent", "revenue",
+    "operating_cost", "total_assets", "parent_equity", "inventory",
+    "accounts_receivable", "total_liabilities", "current_assets",
+    "current_liabilities", "cffo", "sales_cash_received", "capex",
+    "interest_expense", "short_term_loan", "long_term_loan", "bonds_payable",
+)
+
+
+def _coalesce_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+    """同名列后缀净化：merge 产生的 col/col_x/col_y 合并为单列（按顺序取首个非空）.
+
+    2026-10-06 修复：上游若对报表帧补过占位列（防 KeyError 的容错），三表会出现
+    同名列，merge 后生成 _x/_y 后缀且第三表的占位列占据标准名，导致 compute_metrics
+    取到全 NaN 列（曾使全部指标输出 None）。coalesce 语义：同名科目取唯一非空来源。
+    """
+    suffixed = [c for c in df.columns if c.endswith(("_x", "_y"))]
+    if not suffixed:
+        return df
+    bases = {c[:-2] for c in suffixed}
+    for b in bases:
+        variants = [c for c in (b, f"{b}_x", f"{b}_y") if c in df.columns]
+        if len(variants) > 1:
+            df[b] = df[variants].bfill(axis=1).iloc[:, 0]
+        df = df.drop(columns=[c for c in variants if c != b])
+    return df
+
+
 def merge_reports(reports: dict[str, pd.DataFrame]) -> pd.DataFrame:
-    """按 report_date 合并三大报表. 缺键或空表 fail-fast."""
+    """按 report_date 合并三大报表. 缺键或空表 fail-fast.
+
+    合并后做两件事（2026-10-06）：
+    1. 同名列 coalesce（见 _coalesce_duplicates）；
+    2. 计算所需列若缺失则补 NaN 列——在合并后的唯一真相帧上补，
+       而不是像旧设计那样对原始报表帧注入（那会引发后缀分裂）。
+    """
     missing = [k for k in _REQUIRED_REPORTS if k not in reports]
     if missing:
         raise ValueError(f"缺少报表: {missing}")
@@ -46,6 +81,10 @@ def merge_reports(reports: dict[str, pd.DataFrame]) -> pd.DataFrame:
         .merge(reports["income_statement"], on="report_date", how="outer")
         .merge(reports["cash_flow"], on="report_date", how="outer")
     )
+    df = _coalesce_duplicates(df)
+    for col in _COMPUTE_COLS:
+        if col not in df.columns:
+            df[col] = float("nan")
     return df.sort_values("report_date").reset_index(drop=True)
 
 

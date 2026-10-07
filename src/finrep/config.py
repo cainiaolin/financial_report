@@ -19,7 +19,7 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-_ENV_VAR_PATTERN = re.compile(r"\$\{([A-Z0-9_]+)\}")
+_ENV_VAR_PATTERN = re.compile(r"\$\{([A-Z0-9_]+)(?::-(.*?))?\}")
 
 
 def _validate_project_root() -> Path:
@@ -67,9 +67,12 @@ def _expand(value: Any, missing: list[str]) -> Any:
     """
     if isinstance(value, str):
         def _sub(match: re.Match[str]) -> str:
-            var = match.group(1)
+            var, default = match.group(1), match.group(2)
             val = os.environ.get(var)
-            if val is None:
+            # 未配置或空串: 有默认值(${VAR:-default})用默认, 否则记 missing
+            if not val:
+                if default is not None:
+                    return default
                 missing.append(var)
                 logger.warning("环境变量未配置, 占位符替换为空串: %s", var)
                 return ""

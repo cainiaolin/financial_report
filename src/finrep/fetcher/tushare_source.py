@@ -23,6 +23,9 @@ TUSHARE_API = {
 }
 
 # Tushare 英文字段 → 标准名 (覆盖基类的中文映射)
+# 2026-10-06 修正字段名：tushare balancesheet 实际字段为 inventories/accounts_receiv/
+# st_borr/lt_borr（旧映射用猜测名 inventory/accounts_rece/st_borrow/lt_borrow，
+# 映射不上被 _standardize 静默丢弃，导致存货/应收/借款列全缺）
 TUSHARE_MAP: dict[str, dict[str, str]] = {
     "balance_sheet": {
         "end_date": "report_date",
@@ -30,11 +33,13 @@ TUSHARE_MAP: dict[str, dict[str, str]] = {
         "total_liab": "total_liabilities",
         "total_cur_assets": "current_assets",
         "total_cur_liab": "current_liabilities",
-        "inventory": "inventory",
-        "accounts_rece": "accounts_receivable",
+        "inventories": "inventory",
+        "accounts_receiv": "accounts_receivable",
         "goodwill": "goodwill",
-        "st_borrow": "short_term_loan",
-        "lt_borrow": "long_term_loan",
+        "st_borr": "short_term_loan",
+        "lt_borr": "long_term_loan",
+        "lt_bonds_payable": "bonds_payable",
+        "monetary_capital": "monetary_funds",
         "total_hldr_eqy_exc_min_int": "parent_equity",
         "total_hldr_eqy_inc_min_int": "total_equity",
     },

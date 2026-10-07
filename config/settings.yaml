@@ -13,6 +13,7 @@ paths:
   warehouse: ./data/warehouse.duckdb
   sync_state: ./data/meta/sync_state.duckdb
   reports_dir: ./reports
+  annual_reports: ./data/annual_reports  # 年报 PDF 文本缓存
 
 # 限频与重试
 limits:
@@ -24,3 +25,17 @@ validation:
   cross_source_threshold: 0.01     # 双源交叉校验: 关键字段差异 >1% 标记复核
   balance_identity_threshold: 0.001 # 资产负债恒等式 |资产-负债-权益|/总资产 ≤ 0.1%
   key_fields: [revenue, net_profit, total_assets, parent_equity, cffo]
+
+# AI 分析 (巴菲特/芒格视角); 所有字段均可通过 .env 覆盖, 支持 ${VAR:-默认值}
+ai:
+  provider: ${AI_PROVIDER:-glm}                 # glm | deepseek
+  glm:
+    api_key: ${ZHIPU_API_KEY}
+    base_url: ${ZHIPU_BASE_URL:-https://open.bigmodel.cn/api/paas/v4/}
+    model: ${ZHIPU_MODEL:-glm-4.5-air}          # 旗舰 glm-5.2 / 免费 glm-4.7-flash
+  deepseek:
+    api_key: ${DEEPSEEK_API_KEY}
+    base_url: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+    model: ${DEEPSEEK_MODEL:-deepseek-chat}     # deepseek-chat / deepseek-reasoner
+  temperature: 0.3              # 财报分析需确定性, 调低
+  max_tokens: 4096
